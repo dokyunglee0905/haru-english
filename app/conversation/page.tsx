@@ -36,6 +36,7 @@ export default function ConversationPage() {
   const [showHint, setShowHint] = useState(false);
   const [isListening, setIsListening] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const recognitionRef = useRef<any>(null);
 
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, async (u) => {
@@ -66,16 +67,23 @@ export default function ConversationPage() {
   }
 
   function startListening() {
-    if (typeof window==='undefined') return;
-    const SpeechRecognition = (window as any).SpeechRecognition||(window as any).webkitSpeechRecognition;
+    if (typeof window === 'undefined') return;
+    const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
     if (!SpeechRecognition) { alert('Chrome 브라우저를 사용해주세요!'); return; }
-    const recognition = new SpeechRecognition();
-    recognition.lang='ko-KR'; recognition.interimResults=false; recognition.maxAlternatives=1;
-    recognition.onstart=()=>setIsListening(true);
-    recognition.onend=()=>setIsListening(false);
-    recognition.onresult=(event: any)=>setInput(event.results[0][0].transcript);
-    recognition.onerror=()=>setIsListening(false);
-    recognition.start();
+
+    if (!recognitionRef.current) {
+      const recognition = new SpeechRecognition();
+      recognition.lang = 'ko-KR';
+      recognition.interimResults = false;
+      recognition.maxAlternatives = 1;
+      recognition.continuous = false;
+      recognition.onstart = () => setIsListening(true);
+      recognition.onend = () => setIsListening(false);
+      recognition.onresult = (event: any) => setInput(event.results[0][0].transcript);
+      recognition.onerror = () => setIsListening(false);
+      recognitionRef.current = recognition;
+    }
+    recognitionRef.current.start();
   }
 
   async function sendMessage() {
@@ -128,7 +136,7 @@ export default function ConversationPage() {
 
       {/* 채팅 화면 */}
       {selectedScenario && (
-        <div>
+        <div style={{ display:'flex', flexDirection:'column' }}>
           {/* 헤더 */}
           <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', background:'#1E1E35', border:'1px solid rgba(255,255,255,0.08)', borderRadius:'14px', padding:'12px 16px', marginBottom:'12px' }}>
             <div style={{ display:'flex', alignItems:'center', gap:'10px' }}>
@@ -202,20 +210,20 @@ export default function ConversationPage() {
           {/* 입력창 */}
           <div style={{ display:'flex', gap:'6px', alignItems:'center' }}>
             <button onClick={()=>setShowHint(h=>!h)}
-              style={{ background:showHint?'rgba(245,158,11,0.2)':'rgba(245,158,11,0.1)', border:'1px solid rgba(245,158,11,0.3)', color:'#F59E0B', borderRadius:'10px', padding:'11px 12px', cursor:'pointer', fontSize:'0.9rem', flexShrink:0 }}>
+              style={{ background:showHint?'rgba(245,158,11,0.2)':'rgba(245,158,11,0.1)', border:'1px solid rgba(245,158,11,0.3)', color:'#F59E0B', borderRadius:'10px', padding:'11px 10px', cursor:'pointer', fontSize:'0.9rem', flexShrink:0 }}>
               💡
             </button>
             <input value={input} onChange={e=>setInput(e.target.value)}
               onKeyDown={e=>e.key==='Enter'&&!e.shiftKey&&sendMessage()}
-              placeholder="한국어 또는 영어로 입력하세요..."
-              style={{ flex:1, background:'#1E1E35', border:'1px solid rgba(255,255,255,0.1)', borderRadius:'10px', padding:'11px 14px', color:'#F1F0FF', fontSize:'0.88rem', outline:'none' }}
+              placeholder="입력하세요..."
+              style={{ flex:1, minWidth:0, background:'#1E1E35', border:'1px solid rgba(255,255,255,0.1)', borderRadius:'10px', padding:'11px 10px', color:'#F1F0FF', fontSize:'0.88rem', outline:'none' }}
             />
             <button onClick={startListening} disabled={isListening}
-              style={{ background:isListening?'rgba(239,68,68,0.3)':'rgba(16,185,129,0.15)', border:`1px solid ${isListening?'#EF4444':'rgba(16,185,129,0.3)'}`, color:isListening?'#EF4444':'#10B981', borderRadius:'10px', padding:'11px 12px', cursor:isListening?'not-allowed':'pointer', fontSize:'1rem', flexShrink:0 }}>
+              style={{ background:isListening?'rgba(239,68,68,0.3)':'rgba(16,185,129,0.15)', border:`1px solid ${isListening?'#EF4444':'rgba(16,185,129,0.3)'}`, color:isListening?'#EF4444':'#10B981', borderRadius:'10px', padding:'11px 10px', cursor:isListening?'not-allowed':'pointer', fontSize:'1rem', flexShrink:0 }}>
               {isListening?'🔴':'🎤'}
             </button>
             <button onClick={sendMessage} disabled={loading||!input.trim()}
-              style={{ background:loading||!input.trim()?'rgba(79,70,229,0.3)':'#4F46E5', border:'none', color:'white', borderRadius:'10px', padding:'11px 16px', cursor:loading?'not-allowed':'pointer', fontWeight:700, fontSize:'0.88rem', flexShrink:0 }}>
+              style={{ background:loading||!input.trim()?'rgba(79,70,229,0.3)':'#4F46E5', border:'none', color:'white', borderRadius:'10px', padding:'11px 12px', cursor:loading?'not-allowed':'pointer', fontWeight:700, fontSize:'0.88rem', flexShrink:0, whiteSpace:'nowrap' }}>
               전송→
             </button>
           </div>
