@@ -50,6 +50,16 @@ export default function ConversationPage() {
     messagesEndRef.current?.scrollIntoView({ behavior:'smooth' });
   }, [messages]);
 
+  // 컴포넌트 언마운트 시 마이크 정리
+  useEffect(() => {
+    return () => {
+      if (recognitionRef.current) {
+        try { recognitionRef.current.abort(); } catch(e) {}
+        recognitionRef.current = null;
+      }
+    };
+  }, []);
+
   function selectScenario(scenario: typeof SCENARIOS[0]) {
     setSelectedScenario(scenario);
     setMessages([{ role:'assistant', content:scenario.aiFirst }]);
@@ -66,24 +76,59 @@ export default function ConversationPage() {
     }
   }
 
-  function startListening() {
+  function toggleListening() {
     if (typeof window === 'undefined') return;
     const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
     if (!SpeechRecognition) { alert('Chrome 브라우저를 사용해주세요!'); return; }
 
-    if (!recognitionRef.current) {
+    // 녹음 중이면 중지
+    if (isListening) {
+      try {
+        recognitionRef.current?.stop();
+      } catch(e) {}
+      setIsListening(false);
+      return;
+    }
+
+    // 새 recognition 생성 (매번 새로 만들어야 iOS Safari에서 안정적)
+    try {
+      if (recognitionRef.current) {
+        recognitionRef.current.abort();
+        recognitionRef.current = null;
+      }
+
       const recognition = new SpeechRecognition();
       recognition.lang = 'ko-KR';
       recognition.interimResults = false;
       recognition.maxAlternatives = 1;
       recognition.continuous = false;
+
       recognition.onstart = () => setIsListening(true);
-      recognition.onend = () => setIsListening(false);
-      recognition.onresult = (event: any) => setInput(event.results[0][0].transcript);
-      recognition.onerror = () => setIsListening(false);
+
+      recognition.onresult = (event: any) => {
+        const transcript = event.results[0][0].transcript;
+        setInput(transcript);
+        setIsListening(false);
+      };
+
+      recognition.onend = () => {
+        setIsListening(false);
+      };
+
+      recognition.onerror = (event: any) => {
+        console.error('음성인식 오류:', event.error);
+        setIsListening(false);
+        if (event.error === 'not-allowed') {
+          alert('마이크 권한을 허용해주세요!');
+        }
+      };
+
       recognitionRef.current = recognition;
+      recognition.start();
+    } catch(e) {
+      console.error(e);
+      setIsListening(false);
     }
-    recognitionRef.current.start();
   }
 
   async function sendMessage() {
@@ -218,17 +263,38 @@ export default function ConversationPage() {
               placeholder="입력하세요..."
               style={{ flex:1, minWidth:0, background:'#1E1E35', border:'1px solid rgba(255,255,255,0.1)', borderRadius:'10px', padding:'11px 10px', color:'#F1F0FF', fontSize:'0.88rem', outline:'none' }}
             />
-            <button onClick={startListening} disabled={isListening}
-              style={{ background:isListening?'rgba(239,68,68,0.3)':'rgba(16,185,129,0.15)', border:`1px solid ${isListening?'#EF4444':'rgba(16,185,129,0.3)'}`, color:isListening?'#EF4444':'#10B981', borderRadius:'10px', padding:'11px 10px', cursor:isListening?'not-allowed':'pointer', fontSize:'1rem', flexShrink:0 }}>
-              {isListening?'🔴':'🎤'}
+            <button onClick={toggleListening}
+              style={{
+                background: isListening ? 'rgba(239,68,68,0.3)' : 'rgba(16,185,129,0.15)',
+                border: `1px solid ${isListening ? '#EF4444' : 'rgba(16,185,129,0.3)'}`,
+                color: isListening ? '#EF4444' : '#10B981',
+                borderRadius:'10px', padding:'11px 10px', cursor:'pointer', fontSize:'1rem', flexShrink:0,
+                animation: isListening ? 'pulse 1s infinite' : 'none'
+              }}>
+              {isListening ? '🔴' : '🎤'}
             </button>
             <button onClick={sendMessage} disabled={loading||!input.trim()}
               style={{ background:loading||!input.trim()?'rgba(79,70,229,0.3)':'#4F46E5', border:'none', color:'white', borderRadius:'10px', padding:'11px 12px', cursor:loading?'not-allowed':'pointer', fontWeight:700, fontSize:'0.88rem', flexShrink:0, whiteSpace:'nowrap' }}>
               전송→
             </button>
           </div>
+
+          {/* 마이크 상태 표시 */}
+          {isListening && (
+            <div style={{ textAlign:'center', marginTop:'8px', color:'#EF4444', fontSize:'0.82rem', fontWeight:600 }}>
+              🎤 듣고 있어요... 말씀해주세요!
+            </div>
+          )}
         </div>
       )}
+
+      <style>{`
+        @keyframes pulse {
+          0% { opacity: 1; }
+          50% { opacity: 0.5; }
+          100% { opacity: 1; }
+        }
+      `}</style>
     </Layout>
   );
 }
